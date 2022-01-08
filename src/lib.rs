@@ -255,6 +255,7 @@ impl AmazonBrowser {
         let end = to_year(range.end());
         let start = to_year(range.start());
         let years = (start..=end).rev().collect::<Vec<i32>>();
+        self.login().await?;
         self.goto_home().await?; // Amazonは最初だけ例外的に飛ばされるページがある
         for year in &years {
             self.goto_history(year).await?;
@@ -285,10 +286,7 @@ mod tests {
     #[tokio::test]
     async fn サインインとhome到達チェック() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("home").await?;
-        browser.goto_logout().await?;
-        browser.goto_login().await?;
         browser.login().await?;
-        browser.goto_home().await?;
         let not_logged_in_nav_message = "こんにちは";
         let logged_in_nav_message = "お届け先 狩野亮さん";
         let page_message = browser.nav_message().await?;
@@ -308,37 +306,26 @@ mod tests {
         let page_message = browser.nav_message().await?;
         assert_eq!(page_message, not_logged_in_nav_message);
         assert_ne!(page_message, logged_in_nav_message);
-
         browser.quit().await?;
         Ok(())
     }
     #[tokio::test]
     async fn historyページに到達できていることの確認() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("history2020").await?;
-        browser.goto_logout().await?;
-        browser.goto_login().await?;
         browser.login().await?;
-        browser.goto_home().await?;
-
         browser.goto_history(&2020).await?;
         let year_in_prompot = "2020年";
         let prompt_year = browser.year_in_prompt().await?;
         assert_eq!(prompt_year, year_in_prompot);
-
         browser.quit().await?;
         Ok(())
     }
     #[tokio::test]
     async fn ページを跨いだ場合でも正しく読めるか個数で確認() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("page_over").await?;
-        browser.goto_logout().await?;
-        browser.goto_login().await?;
-        browser.login().await?;
-        browser.goto_home().await?;
-
+        // browser.login().await?; // extract()に入っている
         let span = Range::new("2021-08-17", "2021-09-18"); // 電子書籍は除かれる
         let logs = browser.extract(&span).await?;
-
         assert_eq!(logs.len(), 2);
         browser.quit().await?;
         Ok(())
@@ -346,14 +333,9 @@ mod tests {
     #[tokio::test]
     async fn ギフト商品が読めているか確認するテスト() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("gift").await?;
-        browser.goto_logout().await?;
-        browser.goto_login().await?;
-        browser.login().await?;
-        browser.goto_home().await?;
-
+        // browser.login().await?; // extract()に入っている
         let span = Range::new("2020-07-17", "2020-07-17");
         let logs = browser.extract(&span).await?;
-
         // 2020.7.17 ￥3,299 （テンキー）
         assert_eq!(
             logs.iter().filter(|&log| log.hash == "B088KDK163").count(),
