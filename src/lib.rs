@@ -207,6 +207,8 @@ impl AmazonBrowser {
                     let hash = caps.get(1).unwrap().as_str().to_string();
 
                     let name = log_element
+                        .find_element(By::ClassName("a-col-right"))
+                        .await?
                         .find_element(By::ClassName("a-link-normal"))
                         .await?
                         .text()
