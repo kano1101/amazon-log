@@ -247,7 +247,7 @@ impl AmazonBrowser {
 
 use range::Range;
 impl AmazonBrowser {
-    async fn extract(&mut self, range: &Range) -> WebDriverResult<Vec<Log>> {
+    pub async fn extract(&mut self, range: &Range) -> WebDriverResult<Vec<Log>> {
         let mut logs = Ok(vec![]);
         use crate::utils::to_year;
         let end = to_year(range.end());
