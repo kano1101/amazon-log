@@ -7,6 +7,8 @@ use dotenv::dotenv;
 use std::env;
 use thirtyfour::prelude::*;
 
+pub type AmazonBrowserResult<T> = WebDriverResult<T>;
+
 pub struct Log {
     pub hash: String,
     pub name: String,
@@ -47,13 +49,13 @@ impl AmazonBrowser {
 }
 
 impl AmazonBrowser {
-    pub async fn title(&mut self) -> WebDriverResult<String> {
+    async fn title(&mut self) -> WebDriverResult<String> {
         let driver = self.check_out();
         let title = driver.title().await?;
         self.check_in(driver);
         Ok(title)
     }
-    pub async fn goto_home(&mut self) -> WebDriverResult<()> {
+    async fn goto_home(&mut self) -> WebDriverResult<()> {
         let driver = self.check_out();
         let home_url = "https://www.amazon.co.jp/ref=nav_logo";
         driver.get(home_url).await?;
@@ -74,7 +76,7 @@ impl AmazonBrowser {
         self.check_in(driver);
         Ok(())
     }
-    pub async fn login(&mut self) -> WebDriverResult<()> {
+    async fn login(&mut self) -> WebDriverResult<()> {
         self.goto_logout().await?;
         self.goto_login().await?;
 
@@ -101,14 +103,14 @@ impl AmazonBrowser {
         self.goto_home().await?;
         Ok(())
     }
-    pub async fn goto_history(&mut self, year: &i32) -> WebDriverResult<()> {
+    async fn goto_history(&mut self, year: &i32) -> WebDriverResult<()> {
         let driver = self.check_out();
         let history_url = format!("https://www.amazon.co.jp/gp/your-account/order-history?opt=ab&digitalOrders=1&unifiedOrders=1&returnTo=&__mk_ja_JP=%E3%82%AB%E3%82%BF%E3%82%AB%E3%83%8A&orderFilter=year-{}", year);
         driver.get(history_url).await?;
         self.check_in(driver);
         Ok(())
     }
-    pub async fn nav_message(&mut self) -> WebDriverResult<String> {
+    async fn nav_message(&mut self) -> WebDriverResult<String> {
         let driver = self.check_out();
         let message = driver
             .find_element(By::Id("glow-ingress-line1"))
@@ -118,7 +120,7 @@ impl AmazonBrowser {
         self.check_in(driver);
         Ok(message)
     }
-    pub async fn year_in_prompt(&mut self) -> WebDriverResult<String> {
+    async fn year_in_prompt(&mut self) -> WebDriverResult<String> {
         let driver = self.check_out();
         let message = driver
             .find_element(By::ClassName("a-dropdown-prompt"))
