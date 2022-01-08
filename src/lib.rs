@@ -8,12 +8,11 @@ use std::env;
 use thirtyfour::prelude::*;
 
 pub struct Log {
-    hash: String,
-    name: String,
-    price: i32,
-    purchased_at: String,
+    pub hash: String,
+    pub name: String,
+    pub price: i32,
+    pub purchased_at: String,
 }
-// impl // PartialEqにhashのみ比較の実装をする
 
 pub struct AmazonBrowser {
     driver: Option<Box<WebDriver>>,
@@ -131,114 +130,113 @@ impl AmazonBrowser {
     }
 }
 
-// use async_recursion::async_recursion;
-// use chrono::NaiveDate;
-// use regex::Regex;
-// use std::collections::BTreeMap;
-// impl AmazonBrowser {
-//     #[async_recursion]
-//     async fn scrape_history(
-//         &mut self,
-//         result: WebDriverResult<BTreeMap<String, Entity>>,
-//     ) -> WebDriverResult<BTreeMap<String, Entity>> {
-//         let mut result = result.unwrap();
-//         if result.len() >= self.limited_len {
-//             return Ok(result);
-//         }
+use crate::utils::to_naive_date;
+use async_recursion::async_recursion;
+use chrono::NaiveDate;
+use regex::Regex;
+impl AmazonBrowser {
+    #[async_recursion]
+    async fn scrape_history(
+        &mut self,
+        result: WebDriverResult<Vec<Log>>,
+        range: &Range,
+    ) -> WebDriverResult<Vec<Log>> {
+        let driver = self.check_out();
 
-//         let driver = self.check_out();
+        let mut result = result.unwrap();
 
-//         let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
-//         for n in 0..groups.len() {
-//             if result.len() >= self.limited_len {
-//                 continue;
-//             }
+        let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
+        for n in 0..groups.len() {
+            let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
+            let group = groups.get(n).unwrap();
+            let purchased_at_str = group
+                .find_element(By::ClassName("a-span3"))
+                .await?
+                .find_element(By::ClassName("a-color-secondary.value"))
+                .await?
+                .text()
+                .await?;
+            let purchased_at =
+                NaiveDate::parse_from_str(&purchased_at_str, "%Y年%m月%d日").unwrap();
 
-//             let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
-//             let group = groups.get(n).unwrap();
-//             let purchased_at_str = group
-//                 .find_element(By::ClassName("a-span3"))
-//                 .await?
-//                 .find_element(By::ClassName("a-color-secondary.value"))
-//                 .await?
-//                 .text()
-//                 .await?;
-//             let purchased_at =
-//                 NaiveDate::parse_from_str(&purchased_at_str, "%Y年%m月%d日").unwrap();
-//             // 次のコードはページ遷移処理ブロック
-//             {
-//                 group
-//                     .find_element(By::ClassName("a-unordered-list"))
-//                     .await?
-//                     .find_elements(By::ClassName("a-link-normal"))
-//                     .await?
-//                     .first()
-//                     .unwrap()
-//                     .click()
-//                     .await?; // -> 注文内容を表示ページへ遷移
-//                 let entity_elements = driver
-//                     .find_elements(By::ClassName("a-fixed-left-grid-col.a-col-right"))
-//                     .await?;
+            // endを超えたら即returnする手もある
+            match purchased_at {
+                d if d < to_naive_date(range.start()) || to_naive_date(range.end()) < d => continue,
+                _ => (),
+            }
+            // 次のコードはページ遷移処理ブロック
+            {
+                group
+                    .find_element(By::ClassName("a-unordered-list"))
+                    .await?
+                    .find_elements(By::ClassName("a-link-normal"))
+                    .await?
+                    .first()
+                    .unwrap()
+                    .click()
+                    .await?; // -> 注文内容を表示ページへ遷移
+                let log_elements = driver
+                    .find_elements(By::ClassName("a-fixed-left-grid-col.a-col-right"))
+                    .await?;
 
-//                 // TODO: ×2個以上の場合に対応していないので要注意
-//                 for entity_element in &entity_elements {
-//                     if result.len() >= self.limited_len {
-//                         continue;
-//                     }
+                // TODO: ×2個以上の場合に対応していないので要注意
+                for log_element in &log_elements {
+                    let href_str = log_element
+                        .find_element(By::ClassName("a-link-normal"))
+                        .await?
+                        .get_attribute("href")
+                        .await?
+                        .unwrap();
+                    let re = Regex::new(r"/gp/product/(\w{10})/ref=").unwrap();
+                    let caps = re.captures(&href_str).unwrap();
+                    let hash = caps.get(1).unwrap().as_str().to_string();
 
-//                     let href_str = entity_element
-//                         .find_element(By::ClassName("a-link-normal"))
-//                         .await?
-//                         .get_attribute("href")
-//                         .await?
-//                         .unwrap();
-//                     let re = Regex::new(r"/gp/product/(\w{10})/ref=").unwrap();
-//                     let caps = re.captures(&href_str).unwrap();
-//                     let hash = caps.get(1).unwrap().as_str().to_string();
+                    let name = log_element
+                        .find_element(By::ClassName("a-link-normal"))
+                        .await?
+                        .text()
+                        .await?;
+                    let price_raw_str = log_element
+                        .find_element(By::ClassName("a-color-price"))
+                        .await?
+                        .text()
+                        .await?;
+                    let price_str: String = price_raw_str.trim().replace(&['￥', ' ', ','][..], "");
+                    let price = price_str.parse::<i32>().unwrap();
 
-//                     let name = entity_element
-//                         .find_element(By::ClassName("a-link-normal"))
-//                         .await?
-//                         .text()
-//                         .await?;
-//                     let price_raw_str = entity_element
-//                         .find_element(By::ClassName("a-color-price"))
-//                         .await?
-//                         .text()
-//                         .await?;
-//                     let price_str: String = price_raw_str.trim().replace(&['￥', ' ', ','][..], "");
-//                     let price = price_str.parse::<i32>().unwrap();
+                    let new = Log {
+                        hash: hash,
+                        name: name,
+                        price: price,
+                        purchased_at: purchased_at.to_string(),
+                    };
+                    result.push(new);
+                }
+                driver.back().await?;
+            }
+        }
 
-//                     let new = Entity::new(name, price, purchased_at);
-//                     result.insert(hash, new);
-//                 }
-//                 driver.back().await?;
-//             }
-//         }
+        if let Ok(_) = driver
+            .find_element(By::ClassName("a-disabled.a-last"))
+            .await
+        {
+            self.check_in(driver);
+        } else if let Ok(e) = driver.find_element(By::ClassName("a-last")).await {
+            e.click().await?;
+            self.check_in(driver);
+            result = self.scrape_history(Ok(result), range).await?
+        } else {
+            self.check_in(driver);
+        }
 
-//         if let Ok(_) = driver
-//             .find_element(By::ClassName("a-disabled.a-last"))
-//             .await
-//         {
-//             self.check_in(driver);
-//         } else if let Ok(e) = driver.find_element(By::ClassName("a-last")).await {
-//             e.click().await?;
-//             self.check_in(driver);
-//             result = self.scrape_history(Ok(result)).await?
-//         } else {
-//             self.check_in(driver);
-//         }
+        Ok(result)
+    }
+}
 
-//         Ok(result)
-//     }
-// }
-
-// use async_trait::async_trait;
-// #[async_trait]
 use range::Range;
 impl AmazonBrowser {
-    async fn extract(&mut self, range: Range) -> WebDriverResult<Vec<Log>> {
-        // let mut entities = Ok(vec![]);
+    async fn extract(&mut self, range: &Range) -> WebDriverResult<Vec<Log>> {
+        let mut logs = Ok(vec![]);
         use crate::utils::to_year;
         let end = to_year(range.end());
         let start = to_year(range.start());
@@ -246,15 +244,9 @@ impl AmazonBrowser {
         self.goto_home().await?; // Amazonは最初だけ例外的に飛ばされるページがある
         for year in &years {
             self.goto_history(year).await?;
-            // entities = self.scrape_history(entities).await;
+            logs = self.scrape_history(logs, range).await;
         }
-        // entities
-        Ok(vec![Log {
-            hash: "B088KDK163".to_string(),
-            name: "name".to_string(),
-            price: 42,
-            purchased_at: "2021-07-17".to_string(),
-        }])
+        logs
     }
 }
 
@@ -265,11 +257,6 @@ mod tests {
     use thirtyfour::prelude::*;
     use tokio;
 
-    #[test]
-    fn 初期動作確認() {
-        assert_eq!(1, 1);
-    }
-    // #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[tokio::test]
 
     async fn サインイン画面に行けるか() -> WebDriverResult<()> {
@@ -282,9 +269,8 @@ mod tests {
         browser.quit().await?;
         Ok(())
     }
-    // #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[tokio::test]
-    async fn サインインとHome到達チェック() -> WebDriverResult<()> {
+    async fn サインインとhome到達チェック() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("home").await?;
         browser.goto_logout().await?;
         browser.goto_login().await?;
@@ -338,17 +324,15 @@ mod tests {
         browser.login().await?;
         browser.goto_home().await?;
 
-        let span = Range::new("2020-07-01", "2020-07-31");
-        let entities = browser.extract(span).await?;
+        let span = Range::new("2020-07-12", "2020-07-23");
+        let logs = browser.extract(&span).await?;
 
         // 2020.7.17 ￥3,299 （テンキー）
         assert_eq!(
-            entities
-                .iter()
-                .filter(|&entity| entity.hash == "B088KDK163")
-                .count(),
+            logs.iter().filter(|&log| log.hash == "B088KDK163").count(),
             1
         );
+        assert_eq!(logs.len(), 16);
         browser.quit().await?;
         Ok(())
     }
@@ -361,9 +345,7 @@ mod tests {
             purchased_at: "2021-07-17".to_string(),
         }];
         assert_eq!(
-            logs.iter()
-                .filter(|&entity| entity.hash == "B088KDK163")
-                .count(),
+            logs.iter().filter(|&log| log.hash == "B088KDK163").count(),
             1
         );
         Ok(())
