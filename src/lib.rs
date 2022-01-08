@@ -145,6 +145,7 @@ impl AmazonBrowser {
 
         let mut result = result.unwrap();
 
+        let mut purchased_at = to_naive_date(range.end());
         let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
         for n in 0..groups.len() {
             let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
@@ -156,13 +157,15 @@ impl AmazonBrowser {
                 .await?
                 .text()
                 .await?;
-            let purchased_at =
-                NaiveDate::parse_from_str(&purchased_at_str, "%Y年%m月%d日").unwrap();
+            purchased_at = NaiveDate::parse_from_str(&purchased_at_str, "%Y年%m月%d日").unwrap();
 
-            // endを超えたら即returnする手もある
-            match purchased_at {
-                d if d < to_naive_date(range.start()) || to_naive_date(range.end()) < d => continue,
-                _ => (),
+            // 降順なので大きいとやり直し
+            if purchased_at > to_naive_date(range.end()) {
+                continue;
+            }
+            // 小さいと終了
+            if purchased_at < to_naive_date(range.start()) {
+                break;
             }
             // let countable = group.find_element(By::ClassName("item-view-qty")).await;
             // let count = match countable {
@@ -221,6 +224,11 @@ impl AmazonBrowser {
             }
         }
 
+        // 小さいと終了
+        if purchased_at < to_naive_date(range.start()) {
+            self.check_in(driver);
+            return Ok(result);
+        }
         if let Ok(_) = driver
             .find_element(By::ClassName("a-disabled.a-last"))
             .await
@@ -233,7 +241,6 @@ impl AmazonBrowser {
         } else {
             self.check_in(driver);
         }
-
         Ok(result)
     }
 }
@@ -291,7 +298,7 @@ mod tests {
     }
     #[tokio::test]
     async fn サインインなしではhomeでユーザが出ないチェック() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("not_home").await?;
+        let mut browser = AmazonBrowser::new("no_home").await?;
         browser.goto_logout().await?;
         browser.goto_home().await?;
         let not_logged_in_nav_message = "こんにちは";
@@ -321,7 +328,7 @@ mod tests {
     }
     #[tokio::test]
     async fn ページを跨いだ場合でも正しく読めるか個数で確認() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("tenkey").await?;
+        let mut browser = AmazonBrowser::new("page_over").await?;
         browser.goto_logout().await?;
         browser.goto_login().await?;
         browser.login().await?;
@@ -335,7 +342,7 @@ mod tests {
         Ok(())
     }
     #[tokio::test]
-    async fn 履歴が読めているかギフト商品で確認するテスト() -> WebDriverResult<()> {
+    async fn ギフト商品が読めているか確認するテスト() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("gift").await?;
         browser.goto_logout().await?;
         browser.goto_login().await?;
