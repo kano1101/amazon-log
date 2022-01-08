@@ -18,10 +18,16 @@ pub struct Log {
 
 pub struct AmazonBrowser {
     driver: Option<Box<WebDriver>>,
+    email: String,
+    password: String,
 }
 
 impl AmazonBrowser {
-    pub async fn new(user_data_dir: &str) -> WebDriverResult<AmazonBrowser> {
+    pub async fn new(
+        email: &str,
+        password: &str,
+        user_data_dir: &str,
+    ) -> WebDriverResult<AmazonBrowser> {
         let caps_args = &format!(
             r#"--user-data-dir="/Users/a.kano/Library/Application Support/Google/Chrome/{}""#,
             user_data_dir.to_string()
@@ -31,6 +37,8 @@ impl AmazonBrowser {
         let driver = WebDriver::new("http://localhost:4444", &caps).await?;
         Ok(AmazonBrowser {
             driver: Some(Box::new(driver)),
+            email: email.to_string(),
+            password: password.to_string(),
         })
     }
     pub async fn quit(&mut self) -> WebDriverResult<()> {
@@ -82,19 +90,13 @@ impl AmazonBrowser {
 
         let driver = self.check_out();
 
-        dotenv().ok();
-
         let element_email = driver.find_element(By::Id("ap_email")).await?;
-        element_email
-            .send_keys(env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set"))
-            .await?;
+        element_email.send_keys(&self.email).await?;
         let element_email_button = driver.find_element(By::Id("continue")).await?;
         element_email_button.click().await?;
 
         let element_password = driver.find_element(By::Id("ap_password")).await?;
-        element_password
-            .send_keys(env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set"))
-            .await?;
+        element_password.send_keys(&self.password).await?;
         let element_password_button = driver.find_element(By::Id("signInSubmit")).await?;
         element_password_button.click().await?;
 
@@ -274,7 +276,12 @@ mod tests {
 
     #[tokio::test]
     async fn サインイン画面に行けるか() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("signin").await?;
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "signin").await?;
         browser.goto_logout().await?;
         browser.goto_login().await?;
         let login_title = "Amazonサインイン";
@@ -285,7 +292,12 @@ mod tests {
     }
     #[tokio::test]
     async fn サインインとhome到達チェック() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("home").await?;
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "home").await?;
         browser.login().await?;
         let not_logged_in_nav_message = "こんにちは";
         let logged_in_nav_message = "お届け先 狩野亮さん";
@@ -298,7 +310,12 @@ mod tests {
     }
     #[tokio::test]
     async fn サインインなしではhomeでユーザが出ないチェック() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("no_home").await?;
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "no_home").await?;
         browser.goto_logout().await?;
         browser.goto_home().await?;
         let not_logged_in_nav_message = "こんにちは";
@@ -311,7 +328,12 @@ mod tests {
     }
     #[tokio::test]
     async fn historyページに到達できていることの確認() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("history2020").await?;
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "history2020").await?;
         browser.login().await?;
         browser.goto_history(&2020).await?;
         let year_in_prompot = "2020年";
@@ -322,7 +344,12 @@ mod tests {
     }
     #[tokio::test]
     async fn ページを跨いだ場合でも正しく読めるか個数で確認() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("page_over").await?;
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "page_over").await?;
         // browser.login().await?; // extract()に入っている
         let span = Range::new("2021-08-17", "2021-09-18"); // 電子書籍は除かれる
         let logs = browser.extract(&span).await?;
@@ -332,7 +359,12 @@ mod tests {
     }
     #[tokio::test]
     async fn ギフト商品が読めているか確認するテスト() -> WebDriverResult<()> {
-        let mut browser = AmazonBrowser::new("gift").await?;
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "gift").await?;
         // browser.login().await?; // extract()に入っている
         let span = Range::new("2020-07-17", "2020-07-17");
         let logs = browser.extract(&span).await?;
