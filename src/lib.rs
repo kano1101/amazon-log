@@ -9,6 +9,7 @@ use thirtyfour::prelude::*;
 
 pub type AmazonBrowserResult<T> = WebDriverResult<T>;
 
+#[derive(Clone)]
 pub struct Log {
     pub hash: String,
     pub name: String,
@@ -171,11 +172,6 @@ impl AmazonBrowser {
             if purchased_at < to_naive_date(range.start()) {
                 break;
             }
-            // let countable = group.find_element(By::ClassName("item-view-qty")).await;
-            // let count = match countable {
-            //     Ok(e) => e.text().await?.into::<i32>(),
-            //     _ => 1,
-            // }
             // 次のコードはページ遷移処理ブロック
             {
                 group
@@ -188,11 +184,18 @@ impl AmazonBrowser {
                     .click()
                     .await?; // -> 注文内容を表示ページへ遷移
                 let log_elements = driver
-                    .find_elements(By::ClassName("a-fixed-left-grid-col.a-col-right"))
+                    .find_elements(By::ClassName("a-fixed-left-grid-inner"))
                     .await?;
 
                 // TODO: ×2個以上の場合に対応していないので要注意
                 for log_element in &log_elements {
+                    let countability = log_element
+                        .find_element(By::ClassName("item-view-qty"))
+                        .await;
+                    let count: i32 = match countability {
+                        Ok(e) => e.text().await?.parse().unwrap(),
+                        _ => 1,
+                    };
                     let href_str = log_element
                         .find_element(By::ClassName("a-link-normal"))
                         .await?
@@ -222,7 +225,9 @@ impl AmazonBrowser {
                         price: price,
                         purchased_at: purchased_at.to_string(),
                     };
-                    result.push(new);
+                    for _ in 0..count {
+                        result.push(new.clone());
+                    }
                 }
                 driver.back().await?;
             }
@@ -373,6 +378,21 @@ mod tests {
             logs.iter().filter(|&log| log.hash == "B088KDK163").count(),
             1
         );
+        browser.quit().await?;
+        Ok(())
+    }
+    #[tokio::test]
+    async fn 二個同時購入の場合でも確実に買えていることを確認() -> WebDriverResult<()> {
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "double").await?;
+        // browser.login().await?; // extract()に入っている
+        let span = Range::new("2021-10-19", "2021-10-19");
+        let logs = browser.extract(&span).await?;
+        assert_eq!(logs.len(), 4);
         browser.quit().await?;
         Ok(())
     }
