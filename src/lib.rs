@@ -9,7 +9,7 @@ use thirtyfour::prelude::*;
 
 pub type AmazonBrowserResult<T> = WebDriverResult<T>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Log {
     pub hash: String,
     pub name: String,
