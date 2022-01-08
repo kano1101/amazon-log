@@ -1,7 +1,333 @@
+extern crate dotenv;
+
+mod utils;
+
+use crate::utils::{to_default, to_option};
+use dotenv::dotenv;
+use std::env;
+use thirtyfour::prelude::*;
+
+pub struct Log {
+    hash: String,
+    name: String,
+    price: i32,
+    purchased_at: String,
+}
+// impl // PartialEqにhashのみ比較の実装をする
+
+pub struct AmazonBrowser {
+    driver: Option<Box<WebDriver>>,
+}
+
+impl AmazonBrowser {
+    pub async fn new(user_data_dir: &str) -> WebDriverResult<AmazonBrowser> {
+        let caps_args = &format!(
+            r#"--user-data-dir="/Users/a.kano/Library/Application Support/Google/Chrome/{}""#,
+            user_data_dir.to_string()
+        );
+        let mut caps = DesiredCapabilities::chrome();
+        let _ = caps.add_chrome_arg(caps_args);
+        let driver = WebDriver::new("http://localhost:4444", &caps).await?;
+        Ok(AmazonBrowser {
+            driver: Some(Box::new(driver)),
+        })
+    }
+    pub async fn quit(&mut self) -> WebDriverResult<()> {
+        let driver = self.check_out();
+        driver.quit().await?;
+        Ok(())
+    }
+}
+impl AmazonBrowser {
+    fn check_out(&mut self) -> WebDriver {
+        to_default(&mut self.driver)
+    }
+    fn check_in(&mut self, driver: WebDriver) {
+        to_option(&mut self.driver, driver);
+    }
+}
+
+impl AmazonBrowser {
+    pub async fn title(&mut self) -> WebDriverResult<String> {
+        let driver = self.check_out();
+        let title = driver.title().await?;
+        self.check_in(driver);
+        Ok(title)
+    }
+    async fn goto_login(&mut self) -> WebDriverResult<()> {
+        let driver = self.check_out();
+        let login_url = "https://www.amazon.co.jp/ap/signin?ie=UTF8&openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.co.jp%2Fgp%2Fcss%2Fhomepage.html%3Fref_%3Dnav_youraccount_switchacct&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=jpflex&_encoding=UTF8&openid.mode=checkid_setup&ignoreAuthState=1&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0";
+        driver.get(login_url).await?;
+        // driver.find_element(By::Tag("h1")).await?;
+        self.check_in(driver);
+        Ok(())
+    }
+    async fn goto_logout(&mut self) -> WebDriverResult<()> {
+        let driver = self.check_out();
+        let logout_url = "https://www.amazon.co.jp/gp/flex/sign-out.html?path=%2Fgp%2Fyourstore%2Fhome&signIn=1&useRedirectOnSuccess=1&action=sign-out&ref_=nav_AccountFlyout_signout";
+        driver.get(logout_url).await?;
+        self.check_in(driver);
+        Ok(())
+    }
+    pub async fn login(&mut self) -> WebDriverResult<()> {
+        self.goto_logout().await?;
+        self.goto_login().await?;
+
+        let driver = self.check_out();
+
+        dotenv().ok();
+
+        // let ap_email_not_exist = driver.query(By::Id("ap_email")).not_exists().await?;
+        // let need_input_email = !ap_email_not_exist;
+        let need_input_email = true;
+        if need_input_email == true {
+            let element_email = driver.find_element(By::Id("ap_email")).await?;
+            element_email
+                .send_keys(env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set"))
+                .await?;
+            let element_email_button = driver.find_element(By::Id("continue")).await?;
+            element_email_button.click().await?;
+        }
+
+        let element_password = driver.find_element(By::Id("ap_password")).await?;
+        element_password
+            .send_keys(env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set"))
+            .await?;
+        let element_password_button = driver.find_element(By::Id("signInSubmit")).await?;
+        element_password_button.click().await?;
+
+        self.check_in(driver);
+
+        self.goto_home().await?;
+        Ok(())
+    }
+    pub async fn goto_home(&mut self) -> WebDriverResult<()> {
+        let driver = self.check_out();
+        let home_url = "https://www.amazon.co.jp/ref=nav_logo";
+        driver.get(home_url).await?;
+        self.check_in(driver);
+        Ok(())
+    }
+    pub async fn goto_history(&mut self, year: &i32) -> WebDriverResult<()> {
+        let driver = self.check_out();
+        let history_url = format!("https://www.amazon.co.jp/gp/your-account/order-history?opt=ab&digitalOrders=1&unifiedOrders=1&returnTo=&__mk_ja_JP=%E3%82%AB%E3%82%BF%E3%82%AB%E3%83%8A&orderFilter=year-{}", year);
+        driver.get(history_url).await?;
+        self.check_in(driver);
+        Ok(())
+    }
+    pub async fn nav_message(&mut self) -> WebDriverResult<String> {
+        let driver = self.check_out();
+        let message = driver
+            .find_element(By::Id("glow-ingress-line1"))
+            .await?
+            .text()
+            .await?;
+        self.check_in(driver);
+        Ok(message)
+    }
+}
+
+// use async_recursion::async_recursion;
+// use chrono::NaiveDate;
+// use regex::Regex;
+// use std::collections::BTreeMap;
+// impl AmazonBrowser {
+//     #[async_recursion]
+//     async fn scrape_history(
+//         &mut self,
+//         result: WebDriverResult<BTreeMap<String, Entity>>,
+//     ) -> WebDriverResult<BTreeMap<String, Entity>> {
+//         let mut result = result.unwrap();
+//         if result.len() >= self.limited_len {
+//             return Ok(result);
+//         }
+
+//         let driver = self.check_out();
+
+//         let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
+//         for n in 0..groups.len() {
+//             if result.len() >= self.limited_len {
+//                 continue;
+//             }
+
+//             let groups = driver.find_elements(By::ClassName("a-box-group")).await?;
+//             let group = groups.get(n).unwrap();
+//             let purchased_at_str = group
+//                 .find_element(By::ClassName("a-span3"))
+//                 .await?
+//                 .find_element(By::ClassName("a-color-secondary.value"))
+//                 .await?
+//                 .text()
+//                 .await?;
+//             let purchased_at =
+//                 NaiveDate::parse_from_str(&purchased_at_str, "%Y年%m月%d日").unwrap();
+//             // 次のコードはページ遷移処理ブロック
+//             {
+//                 group
+//                     .find_element(By::ClassName("a-unordered-list"))
+//                     .await?
+//                     .find_elements(By::ClassName("a-link-normal"))
+//                     .await?
+//                     .first()
+//                     .unwrap()
+//                     .click()
+//                     .await?; // -> 注文内容を表示ページへ遷移
+//                 let entity_elements = driver
+//                     .find_elements(By::ClassName("a-fixed-left-grid-col.a-col-right"))
+//                     .await?;
+
+//                 // TODO: ×2個以上の場合に対応していないので要注意
+//                 for entity_element in &entity_elements {
+//                     if result.len() >= self.limited_len {
+//                         continue;
+//                     }
+
+//                     let href_str = entity_element
+//                         .find_element(By::ClassName("a-link-normal"))
+//                         .await?
+//                         .get_attribute("href")
+//                         .await?
+//                         .unwrap();
+//                     let re = Regex::new(r"/gp/product/(\w{10})/ref=").unwrap();
+//                     let caps = re.captures(&href_str).unwrap();
+//                     let hash = caps.get(1).unwrap().as_str().to_string();
+
+//                     let name = entity_element
+//                         .find_element(By::ClassName("a-link-normal"))
+//                         .await?
+//                         .text()
+//                         .await?;
+//                     let price_raw_str = entity_element
+//                         .find_element(By::ClassName("a-color-price"))
+//                         .await?
+//                         .text()
+//                         .await?;
+//                     let price_str: String = price_raw_str.trim().replace(&['￥', ' ', ','][..], "");
+//                     let price = price_str.parse::<i32>().unwrap();
+
+//                     let new = Entity::new(name, price, purchased_at);
+//                     result.insert(hash, new);
+//                 }
+//                 driver.back().await?;
+//             }
+//         }
+
+//         if let Ok(_) = driver
+//             .find_element(By::ClassName("a-disabled.a-last"))
+//             .await
+//         {
+//             self.check_in(driver);
+//         } else if let Ok(e) = driver.find_element(By::ClassName("a-last")).await {
+//             e.click().await?;
+//             self.check_in(driver);
+//             result = self.scrape_history(Ok(result)).await?
+//         } else {
+//             self.check_in(driver);
+//         }
+
+//         Ok(result)
+//     }
+// }
+
+// async fn goto_history(driver: &mut WebDriver, year: &i32) -> WebDriverResult<()> {
+//     let history_url = format!("https://www.amazon.co.jp/gp/your-account/order-history?opt=ab&digitalOrders=1&unifiedOrders=1&returnTo=&__mk_ja_JP=%E3%82%AB%E3%82%BF%E3%82%AB%E3%83%8A&orderFilter=year-{}", year);
+//     driver.get(history_url).await?;
+//     Ok(())
+// }
+
+// use crate::extractor::Extractor;
+// use async_trait::async_trait;
+// #[async_trait]
+// impl Extractor for AmazonBrowser {
+//     async fn extract(&mut self, range: Range) -> WebDriverResult<Vec<Log>> {
+//         let mut entities = Ok(Vec<Log>::new());
+//         let years = vec![2019];
+//         self.goto_home().await?; // Amazonは最初だけ例外的に飛ばされるページがある
+//         for year in &years {
+//             self.goto_history(year).await?;
+//             entities = self.scrape_history(entities).await;
+//         }
+//         entities
+//     }
+//     async fn quit(&mut self) -> WebDriverResult<()> {
+//         let driver = self.check_out();
+//         driver.quit().await?;
+//         Ok(())
+//     }
+// }
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use range::Range;
+    use thirtyfour::prelude::*;
+    use tokio;
+
     #[test]
     fn 初期動作確認() {
         assert_eq!(1, 1);
     }
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test]
+
+    async fn サインイン画面に行けるか() -> WebDriverResult<()> {
+        let mut browser = AmazonBrowser::new("signin").await?;
+        browser.goto_logout().await?;
+        browser.goto_login().await?;
+        let login_title = "Amazonサインイン";
+        assert_eq!(browser.title().await?, login_title);
+        browser.goto_logout().await?;
+        browser.quit().await?;
+        Ok(())
+    }
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test]
+    async fn サインインとHome到達チェック() -> WebDriverResult<()> {
+        let mut browser = AmazonBrowser::new("home").await?;
+        browser.goto_logout().await?;
+        browser.goto_login().await?;
+        browser.login().await?;
+        browser.goto_home().await?;
+        let not_logged_in_nav_message = "こんにちは";
+        let logged_in_nav_message = "お届け先 狩野亮さん";
+        let page_message = browser.nav_message().await?;
+        assert_ne!(page_message, not_logged_in_nav_message);
+        assert_eq!(page_message, logged_in_nav_message);
+        browser.goto_logout().await?;
+        browser.quit().await?;
+        Ok(())
+    }
+    #[tokio::test]
+    async fn サインインなしではHomeでユーザが出ないチェック() -> WebDriverResult<()> {
+        let mut browser = AmazonBrowser::new("not_home").await?;
+        browser.goto_logout().await?;
+        browser.goto_home().await?;
+        let not_logged_in_nav_message = "こんにちは";
+        let logged_in_nav_message = "お届け先 狩野亮さん";
+        let page_message = browser.nav_message().await?;
+        assert_eq!(page_message, not_logged_in_nav_message);
+        assert_ne!(page_message, logged_in_nav_message);
+
+        browser.quit().await?;
+        Ok(())
+    }
+    // #[tokio::test]
+    // async fn サインインとHome到達チェック() -> WebDriverResult<()> {
+    //     let mut browser = AmazonBrowser::new().await?;
+    //     browser.goto_login().await?;
+    //     browser.login().await?;
+    //     browser.goto_home().await?;
+
+    //     let span = Range::new("2020-07-01", "2020-08-01");
+    //     let entities = browser.extract(span).await?;
+
+    //     // 2020.7.17 ￥3,299 （テンキー）
+    //     assert_eq!(
+    //         entities.contains(
+    //         Entity::count_included(entities, "B088KDK163".to_string()),
+    //         1
+    //     );
+    //     browser.quit().await?;
+    //     Ok(())
+    // }
 }
