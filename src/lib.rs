@@ -399,6 +399,28 @@ mod tests {
         Ok(())
     }
     #[tokio::test]
+    async fn nameを問題なく読めているか確認() -> WebDriverResult<()> {
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "double").await?;
+        // browser.login().await?; // extract()に入っている
+        let span = Range::new("2021-11-08", "2021-11-08");
+        let logs = browser.extract(&span).await?;
+        assert_eq!(
+            logs.iter()
+                .filter(|&log| log.name
+                    == "AGF ブレンディ スティック カフェオレ 100本 【 スティックコーヒー 】")
+                .count(),
+            1
+        );
+        assert_eq!(logs.len(), 1);
+        browser.quit().await?;
+        Ok(())
+    }
+    #[tokio::test]
     async fn 履歴のダミーテストケースでロジックの確認() -> WebDriverResult<()> {
         let logs = vec![Log {
             hash: "B088KDK163".to_string(),
