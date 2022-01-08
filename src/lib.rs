@@ -164,6 +164,11 @@ impl AmazonBrowser {
                 d if d < to_naive_date(range.start()) || to_naive_date(range.end()) < d => continue,
                 _ => (),
             }
+            // let countable = group.find_element(By::ClassName("item-view-qty")).await;
+            // let count = match countable {
+            //     Ok(e) => e.text().await?.into::<i32>(),
+            //     _ => 1,
+            // }
             // 次のコードはページ遷移処理ブロック
             {
                 group
@@ -258,7 +263,6 @@ mod tests {
     use tokio;
 
     #[tokio::test]
-
     async fn サインイン画面に行けるか() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("signin").await?;
         browser.goto_logout().await?;
@@ -316,15 +320,29 @@ mod tests {
         Ok(())
     }
     #[tokio::test]
-    #[ignore]
-    async fn 履歴が読めているか確認するテスト() -> WebDriverResult<()> {
+    async fn ページを跨いだ場合でも正しく読めるか個数で確認() -> WebDriverResult<()> {
         let mut browser = AmazonBrowser::new("tenkey").await?;
         browser.goto_logout().await?;
         browser.goto_login().await?;
         browser.login().await?;
         browser.goto_home().await?;
 
-        let span = Range::new("2020-07-12", "2020-07-23");
+        let span = Range::new("2021-08-17", "2021-09-18"); // 電子書籍は除かれる
+        let logs = browser.extract(&span).await?;
+
+        assert_eq!(logs.len(), 2);
+        browser.quit().await?;
+        Ok(())
+    }
+    #[tokio::test]
+    async fn 履歴が読めているかギフト商品で確認するテスト() -> WebDriverResult<()> {
+        let mut browser = AmazonBrowser::new("gift").await?;
+        browser.goto_logout().await?;
+        browser.goto_login().await?;
+        browser.login().await?;
+        browser.goto_home().await?;
+
+        let span = Range::new("2020-07-17", "2020-07-17");
         let logs = browser.extract(&span).await?;
 
         // 2020.7.17 ￥3,299 （テンキー）
@@ -332,7 +350,6 @@ mod tests {
             logs.iter().filter(|&log| log.hash == "B088KDK163").count(),
             1
         );
-        assert_eq!(logs.len(), 16);
         browser.quit().await?;
         Ok(())
     }
