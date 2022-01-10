@@ -1,10 +1,6 @@
-extern crate dotenv;
-
 mod utils;
 
 use crate::utils::{to_default, to_option};
-use dotenv::dotenv;
-use std::env;
 use thirtyfour::prelude::*;
 
 pub type AmazonBrowserResult<T> = WebDriverResult<T>;
@@ -135,10 +131,7 @@ impl AmazonBrowser {
     }
 }
 
-use crate::utils::to_naive_date;
 use async_recursion::async_recursion;
-use chrono::NaiveDate;
-use regex::Regex;
 impl AmazonBrowser {
     #[async_recursion]
     async fn scrape_history(
@@ -146,6 +139,10 @@ impl AmazonBrowser {
         result: WebDriverResult<Vec<Log>>,
         range: &Range,
     ) -> WebDriverResult<Vec<Log>> {
+        use crate::utils::to_naive_date;
+        use chrono::NaiveDate;
+        use regex::Regex;
+
         let driver = self.check_out();
 
         let mut result = result.unwrap();
@@ -272,6 +269,49 @@ impl AmazonBrowser {
         }
         logs
     }
+    async fn goto_first_history(&mut self) -> WebDriverResult<()> {
+        let driver = self.check_out();
+        let first_url = "https://www.amazon.co.jp/gp/css/order-history?ref_=nav_orders_first";
+        driver.get(first_url).await?;
+        self.check_in(driver);
+        Ok(())
+    }
+    fn to_year_num_from_str(maybe_year_str: &str) -> i32 {
+        use regex::Regex;
+        let re = Regex::new(r"(\d{4})年").unwrap();
+
+        use chrono::prelude::*;
+        use chrono::{Duration, Local};
+        let yesterday = (Local::today() + Duration::days(-1)).naive_local();
+        let yesterday_year: i32 = yesterday.year();
+
+        let result = re
+            .captures(&maybe_year_str)
+            .and_then(|caps| caps.get(1))
+            .and_then(|year| year.as_str().parse::<i32>().ok());
+        result.unwrap_or(yesterday_year)
+    }
+    // pub async fn most_formerly_date(&mut self) -> WebDriverResult<String> {
+    //     self.goto_first_history().await?;
+
+    //     use futures::prelude::*;
+    //     let driver = self.check_out();
+    //     let dropdown_elements = driver
+    //         .find_elements(By::ClassName("a-dropdown-link"))
+    //         .await?;
+    //     let dropdown_strs = stream::iter(&dropdown_elements)
+    //         .then(|e| e.text())
+    //         .collect::<Vec<WebDriverResult<_>>>()
+    //         .await;
+    //     self.check_in(driver);
+
+    //     let all_years = dropdown_strs
+    //         .iter()
+    //         .map(|maybe_year_str| self.to_year_num_from_str(maybe_year_str.as_ref().unwrap()));
+    //     let most_formerly_year = all_years.min();
+    //     let most_formerly_date = format!("{}-01-01", most_formerly_year);
+    //     Ok(most_formerly_date)
+    // }
 }
 
 #[cfg(test)]
@@ -281,6 +321,29 @@ mod tests {
     use thirtyfour::prelude::*;
     use tokio;
 
+    #[test]
+    fn to_year_num_from_strが正しいか確認() {
+        assert_eq!(AmazonBrowser::to_year_num_from_str("過去30日間"), 2022);
+        assert_eq!(AmazonBrowser::to_year_num_from_str("過去3か月"), 2022);
+        assert_eq!(AmazonBrowser::to_year_num_from_str("2022年"), 2022);
+        assert_eq!(AmazonBrowser::to_year_num_from_str("2018年"), 2018);
+    }
+    // #[tokio::test]
+    // async fn 最初の取引年を取得し正しいか確認() -> WebDriverResult<()> {
+    //     use dotenv::dotenv;
+    //     use std::env;
+    //     dotenv().ok();
+    //     let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+    //     let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+    //     let mut browser = AmazonBrowser::new(&email, &pass, "formerly_year_correct").await?;
+    //     browser.goto_logout().await?;
+    //     browser.goto_login().await?;
+    //     let most_formerly_date = "2018-01-01";
+    //     assert_eq!(browser.most_formerly_date().await?, most_formerly_date);
+    //     browser.goto_logout().await?;
+    //     browser.quit().await?;
+    //     Ok(())
+    // }
     #[tokio::test]
     async fn サインイン画面に行けるか() -> WebDriverResult<()> {
         use dotenv::dotenv;
