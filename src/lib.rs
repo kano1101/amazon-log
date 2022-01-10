@@ -227,6 +227,7 @@ impl AmazonBrowser {
                     };
                     for _ in 0..count {
                         result.push(new.clone());
+                        println!("読み込み完了: {:?}", new);
                     }
                 }
                 driver.back().await?;
