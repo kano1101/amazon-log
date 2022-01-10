@@ -31,7 +31,6 @@ impl AmazonBrowser {
         );
         let mut caps = DesiredCapabilities::chrome();
         let _ = caps.add_chrome_arg(caps_args);
-        let _ = caps.set_headless();
         let driver = WebDriver::new("http://localhost:4444", &caps).await?;
         Ok(AmazonBrowser {
             driver: Some(Box::new(driver)),
@@ -529,6 +528,22 @@ mod tests {
             logs.iter().filter(|&log| log.hash == "B088KDK163").count(),
             1
         );
+        Ok(())
+    }
+    #[ignore]
+    #[tokio::test]
+    async fn headlessモードだと通しでextractした場合エラーになるのでやめることにした(
+    ) -> WebDriverResult<()> {
+        use dotenv::dotenv;
+        use std::env;
+        dotenv().ok();
+        let email = env::var("AMAZON_EMAIL").expect("AMAZON_EMAIL must be set");
+        let pass = env::var("AMAZON_PASSWORD").expect("AMAZON_PASSWORD must be set");
+        let mut browser = AmazonBrowser::new(&email, &pass, "check_in_bug").await?;
+        let span = Range::new("2018-01-01", "2022-01-09");
+        let logs = browser.extract(&span).await?;
+        assert_eq!(logs.len(), 219);
+        browser.quit().await?;
         Ok(())
     }
 }
