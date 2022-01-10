@@ -9,6 +9,7 @@ edition = "2021"
 async-recursion = "1.0.0"
 chrono = "0.4.19"
 dotenv = "0.15.0"
+futures = "0.3.19"
 range = { git = "https://github.com/kano1101/range.git" }
 regex = "1.5.4"
 thirtyfour = "0.28.0"
