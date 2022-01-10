@@ -31,6 +31,7 @@ impl AmazonBrowser {
         );
         let mut caps = DesiredCapabilities::chrome();
         let _ = caps.add_chrome_arg(caps_args);
+        let _ = caps.set_headless();
         let driver = WebDriver::new("http://localhost:4444", &caps).await?;
         Ok(AmazonBrowser {
             driver: Some(Box::new(driver)),
@@ -263,10 +264,12 @@ impl AmazonBrowser {
         let years = (start..=end).rev().collect::<Vec<i32>>();
         self.login().await?;
         self.goto_home().await?; // Amazonは最初だけ例外的に飛ばされるページがある
+        println!("読み込みを開始しました。");
         for year in &years {
             self.goto_history(year).await?;
             logs = self.scrape_history(logs, range).await;
         }
+        println!("読み込みが終了しました。");
         logs
     }
     async fn goto_first_history(&mut self) -> WebDriverResult<()> {
